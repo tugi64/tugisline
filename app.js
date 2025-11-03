@@ -6,6 +6,10 @@ class CADApp {
         this.canvas = document.getElementById('canvas');
         this.ctx = this.canvas.getContext('2d');
         
+        // Constants
+        this.MIDDLE_MOUSE_BUTTON = 1;
+        this.SELECTION_THRESHOLD = 5;
+        
         // Drawing state
         this.objects = [];
         this.selectedObject = null;
@@ -163,7 +167,7 @@ class CADApp {
         const pos = this.getMousePos(e);
         
         // Middle button or space + left button for panning
-        if (e.button === 1 || (e.button === 0 && e.shiftKey)) {
+        if (e.button === this.MIDDLE_MOUSE_BUTTON || (e.button === 0 && e.shiftKey)) {
             this.isPanning = true;
             this.lastPanPoint = { x: e.clientX, y: e.clientY };
             this.canvas.style.cursor = 'grab';
@@ -343,7 +347,7 @@ class CADApp {
     }
     
     isPointInObject(point, obj) {
-        const threshold = 5;
+        const threshold = this.SELECTION_THRESHOLD;
         
         if (obj.type === 'line') {
             const dist = this.pointToLineDistance(point, obj.start, obj.end);
