@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # TugiSline CAD - Professional DWG Viewer
 
 Modern ve kullanıcı dostu CAD dosya görüntüleyici Android uygulaması.
@@ -161,3 +162,7 @@ Sorularınız veya önerileriniz için:
 
 **Not**: Bu proje modern Android geliştirme pratiklerini ve Material 3 Design sistemini göstermek için hazırlanmıştır.
 
+=======
+# tugisline
+cizim programı
+>>>>>>> fc11a5c9798b4bac49d4ba0abf1e6321075f5cac
