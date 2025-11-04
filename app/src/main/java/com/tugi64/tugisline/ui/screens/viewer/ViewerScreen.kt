@@ -162,7 +162,7 @@ fun ViewerScreen(
                     modifier = Modifier.size(48.dp),
                     containerColor = MaterialTheme.colorScheme.secondaryContainer
                 ) {
-                    Icon(Icons.Default.Close, contentDescription = "Uzaklaştır")
+                    Icon(Icons.Default.HorizontalRule, contentDescription = "Uzaklaştır")
                 }
                 FloatingActionButton(
                     onClick = { viewState = ViewState() },
@@ -419,7 +419,7 @@ fun LeftToolPalette(
             )
 
             ToolButton(
-                icon = Icons.Default.Close,
+                icon = Icons.Default.HorizontalRule,
                 label = "Zoom-",
                 isSelected = selectedTool == ViewerTool.ZOOM_OUT,
                 onClick = { onToolSelected(ViewerTool.ZOOM_OUT) }
