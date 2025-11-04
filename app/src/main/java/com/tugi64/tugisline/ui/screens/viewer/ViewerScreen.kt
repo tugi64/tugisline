@@ -242,32 +242,44 @@ fun DrawingCanvas(
     var offset by remember { mutableStateOf(Offset(viewState.offsetX, viewState.offsetY)) }
     var zoom by remember { mutableStateOf(viewState.zoom) }
 
+    // Zoom state'i ViewState'ten senkronize et
+    LaunchedEffect(viewState.zoom) {
+        zoom = viewState.zoom
+    }
+
     Canvas(
         modifier = modifier
             .background(Color(0xFF1E1E1E))
             .pointerInput(Unit) {
-                // Mouse scroll wheel için zoom
+                // Mouse scroll wheel için zoom - PointerEventType.Scroll kullanarak
                 awaitPointerEventScope {
                     while (true) {
                         val event = awaitPointerEvent()
-                        val scrollDelta = event.changes.firstOrNull()?.scrollDelta
 
-                        if (scrollDelta != null && scrollDelta.y != 0f) {
-                            // Scroll yukarı: zoom in, Scroll aşağı: zoom out
-                            val zoomFactor = if (scrollDelta.y < 0) 1.1f else 0.9f
-                            zoom = (zoom * zoomFactor).coerceIn(0.1f, 10f)
-                            onViewStateChange(ViewState(zoom, offset.x, offset.y))
-                            event.changes.forEach { it.consume() }
+                        // Scroll wheel event'ini yakala
+                        event.changes.firstOrNull()?.let { change ->
+                            val scrollDelta = change.scrollDelta
+
+                            if (scrollDelta.y != 0f) {
+                                // Scroll yukarı (pozitif): zoom in
+                                // Scroll aşağı (negatif): zoom out
+                                val zoomFactor = if (scrollDelta.y > 0) 0.9f else 1.1f
+                                val newZoom = (zoom * zoomFactor).coerceIn(0.1f, 10f)
+                                zoom = newZoom
+                                onViewStateChange(ViewState(newZoom, offset.x, offset.y))
+                                change.consume()
+                            }
                         }
                     }
                 }
             }
             .pointerInput(Unit) {
                 // İki parmak gesture desteği
-                detectTransformGestures { centroid, pan, gestureZoom, _ ->
+                detectTransformGestures { _, pan, gestureZoom, _ ->
                     offset += pan
-                    zoom = (zoom * gestureZoom).coerceIn(0.1f, 10f)
-                    onViewStateChange(ViewState(zoom, offset.x, offset.y))
+                    val newZoom = (zoom * gestureZoom).coerceIn(0.1f, 10f)
+                    zoom = newZoom
+                    onViewStateChange(ViewState(newZoom, offset.x, offset.y))
                 }
             }
             .pointerInput(Unit) {
