@@ -1,0 +1,785 @@
+package com.tugi64.tugisline.ui.screens.viewer
+
+import androidx.compose.animation.*
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.*
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.tugi64.tugisline.data.model.ViewState
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ViewerScreen(
+    fileId: String,
+    onNavigateBack: () -> Unit,
+    onNavigateToLayers: () -> Unit
+) {
+    var viewState by remember { mutableStateOf(ViewState()) }
+    var selectedTool by remember { mutableStateOf(ViewerTool.PAN) }
+    var showLeftPanel by remember { mutableStateOf(false) }
+    var showRightPanel by remember { mutableStateOf(false) }
+    var showBottomBar by remember { mutableStateOf(true) }
+    var cursorPosition by remember { mutableStateOf(Offset.Zero) }
+    var showSaveDialog by remember { mutableStateOf(false) }
+    var showShareDialog by remember { mutableStateOf(false) }
+    var showPrintDialog by remember { mutableStateOf(false) }
+    var gridSnapEnabled by remember { mutableStateOf(true) }
+
+    if (showSaveDialog) {
+        SaveDialog(onDismiss = { showSaveDialog = false })
+    }
+
+    if (showShareDialog) {
+        ShareDialog(onDismiss = { showShareDialog = false })
+    }
+
+    if (showPrintDialog) {
+        PrintDialog(onDismiss = { showPrintDialog = false })
+    }
+
+    Scaffold(
+        topBar = {
+            ViewerTopBar(
+                fileName = "Mimari_Plan_A1.dwg",
+                zoomLevel = (viewState.zoom * 100).toInt(),
+                onNavigateBack = onNavigateBack,
+                onSave = { showSaveDialog = true },
+                onShare = { showShareDialog = true },
+                onPrint = { showPrintDialog = true },
+                onFitToScreen = {
+                    viewState = ViewState(zoom = 1f, offsetX = 0f, offsetY = 0f)
+                },
+                onShowLayers = { showRightPanel = !showRightPanel }
+            )
+        },
+        bottomBar = {
+            AnimatedVisibility(
+                visible = showBottomBar,
+                enter = slideInVertically { it },
+                exit = slideOutVertically { it }
+            ) {
+                ViewerBottomBar(
+                    cursorPosition = cursorPosition,
+                    scale = "1:100",
+                    units = "mm",
+                    gridSnap = gridSnapEnabled,
+                    onToggleGridSnap = { gridSnapEnabled = !gridSnapEnabled }
+                )
+            }
+        }
+    ) { paddingValues ->
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+        ) {
+            // Canvas - Çizim Alanı
+            DrawingCanvas(
+                viewState = viewState,
+                onViewStateChange = { viewState = it },
+                onCursorMove = { cursorPosition = it },
+                modifier = Modifier.fillMaxSize()
+            )
+
+            // Sol Araç Paleti
+            AnimatedVisibility(
+                visible = showLeftPanel,
+                enter = slideInHorizontally { -it },
+                exit = slideOutHorizontally { -it },
+                modifier = Modifier.align(Alignment.CenterStart)
+            ) {
+                LeftToolPalette(
+                    selectedTool = selectedTool,
+                    onToolSelected = { selectedTool = it }
+                )
+            }
+
+            // Sağ Panel (Katmanlar & Properties)
+            AnimatedVisibility(
+                visible = showRightPanel,
+                enter = slideInHorizontally { it },
+                exit = slideOutHorizontally { it },
+                modifier = Modifier.align(Alignment.CenterEnd)
+            ) {
+                RightPropertiesPanel()
+            }
+
+            // Floating Action Button - Araç Paletini Aç/Kapat
+            FloatingActionButton(
+                onClick = { showLeftPanel = !showLeftPanel },
+                modifier = Modifier
+                    .align(Alignment.CenterStart)
+                    .padding(16.dp),
+                containerColor = MaterialTheme.colorScheme.primaryContainer
+            ) {
+                Icon(
+                    if (showLeftPanel) Icons.Default.KeyboardArrowLeft else Icons.Default.Menu,
+                    contentDescription = "Araçlar"
+                )
+            }
+
+            // Zoom Kontrolleri
+            Column(
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                FloatingActionButton(
+                    onClick = {
+                        viewState = viewState.copy(
+                            zoom = (viewState.zoom * 1.2f).coerceAtMost(10f)
+                        )
+                    },
+                    modifier = Modifier.size(48.dp),
+                    containerColor = MaterialTheme.colorScheme.secondaryContainer
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = "Yakınlaştır")
+                }
+                FloatingActionButton(
+                    onClick = {
+                        viewState = viewState.copy(
+                            zoom = (viewState.zoom / 1.2f).coerceAtLeast(0.1f)
+                        )
+                    },
+                    modifier = Modifier.size(48.dp),
+                    containerColor = MaterialTheme.colorScheme.secondaryContainer
+                ) {
+                    Icon(Icons.Default.Close, contentDescription = "Uzaklaştır")
+                }
+                FloatingActionButton(
+                    onClick = { viewState = ViewState() },
+                    modifier = Modifier.size(48.dp),
+                    containerColor = MaterialTheme.colorScheme.tertiaryContainer
+                ) {
+                    Icon(Icons.Default.Refresh, contentDescription = "Sıfırla")
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ViewerTopBar(
+    fileName: String,
+    zoomLevel: Int,
+    onNavigateBack: () -> Unit,
+    onSave: () -> Unit,
+    onShare: () -> Unit,
+    onPrint: () -> Unit,
+    onFitToScreen: () -> Unit,
+    onShowLayers: () -> Unit
+) {
+    TopAppBar(
+        title = {
+            Column {
+                Text(
+                    fileName,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    "Zoom: $zoomLevel%",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        },
+        navigationIcon = {
+            IconButton(onClick = onNavigateBack) {
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Geri")
+            }
+        },
+        actions = {
+            IconButton(onClick = onFitToScreen) {
+                Icon(Icons.Default.CenterFocusWeak, contentDescription = "Ekrana Sığdır")
+            }
+            IconButton(onClick = onShowLayers) {
+                Icon(Icons.Default.FilterList, contentDescription = "Katmanlar")
+            }
+            IconButton(onClick = onSave) {
+                Icon(Icons.Default.SaveAlt, contentDescription = "Kaydet")
+            }
+            IconButton(onClick = onShare) {
+                Icon(Icons.Default.Share, contentDescription = "Paylaş")
+            }
+            IconButton(onClick = onPrint) {
+                Icon(Icons.Default.Send, contentDescription = "Yazdır")
+            }
+        },
+        colors = TopAppBarDefaults.topAppBarColors(
+            containerColor = MaterialTheme.colorScheme.surface,
+            titleContentColor = MaterialTheme.colorScheme.onSurface
+        )
+    )
+}
+
+@Composable
+fun DrawingCanvas(
+    viewState: ViewState,
+    onViewStateChange: (ViewState) -> Unit,
+    onCursorMove: (Offset) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var offset by remember { mutableStateOf(Offset(viewState.offsetX, viewState.offsetY)) }
+    var zoom by remember { mutableStateOf(viewState.zoom) }
+
+    Canvas(
+        modifier = modifier
+            .background(Color(0xFF1E1E1E))
+            .pointerInput(Unit) {
+                // Mouse scroll wheel için zoom
+                awaitPointerEventScope {
+                    while (true) {
+                        val event = awaitPointerEvent()
+                        val scrollDelta = event.changes.firstOrNull()?.scrollDelta
+
+                        if (scrollDelta != null && scrollDelta.y != 0f) {
+                            // Scroll yukarı: zoom in, Scroll aşağı: zoom out
+                            val zoomFactor = if (scrollDelta.y < 0) 1.1f else 0.9f
+                            zoom = (zoom * zoomFactor).coerceIn(0.1f, 10f)
+                            onViewStateChange(ViewState(zoom, offset.x, offset.y))
+                            event.changes.forEach { it.consume() }
+                        }
+                    }
+                }
+            }
+            .pointerInput(Unit) {
+                // İki parmak gesture desteği
+                detectTransformGestures { centroid, pan, gestureZoom, _ ->
+                    offset += pan
+                    zoom = (zoom * gestureZoom).coerceIn(0.1f, 10f)
+                    onViewStateChange(ViewState(zoom, offset.x, offset.y))
+                }
+            }
+            .pointerInput(Unit) {
+                // Tek parmak drag desteği
+                detectDragGestures { change, dragAmount ->
+                    change.consume()
+                    offset += dragAmount
+                    onCursorMove(change.position)
+                    onViewStateChange(ViewState(zoom, offset.x, offset.y))
+                }
+            }
+    ) {
+        val gridSize = 50f * zoom
+        val canvasWidth = size.width
+        val canvasHeight = size.height
+
+        // Grid çizimi
+        for (i in 0 until (canvasWidth / gridSize).toInt() + 1) {
+            val x = (i * gridSize + offset.x) % canvasWidth
+            drawLine(
+                color = Color(0xFF2A2A2A),
+                start = Offset(x, 0f),
+                end = Offset(x, canvasHeight),
+                strokeWidth = 1f
+            )
+        }
+
+        for (i in 0 until (canvasHeight / gridSize).toInt() + 1) {
+            val y = (i * gridSize + offset.y) % canvasHeight
+            drawLine(
+                color = Color(0xFF2A2A2A),
+                start = Offset(0f, y),
+                end = Offset(canvasWidth, y),
+                strokeWidth = 1f
+            )
+        }
+
+        // Demo çizim - Basit geometriler
+        val centerX = canvasWidth / 2 + offset.x
+        val centerY = canvasHeight / 2 + offset.y
+
+        // Dikdörtgen
+        drawRect(
+            color = Color.Cyan,
+            topLeft = Offset(centerX - 100 * zoom, centerY - 80 * zoom),
+            size = androidx.compose.ui.geometry.Size(200 * zoom, 160 * zoom),
+            style = Stroke(width = 2f)
+        )
+
+        // Daire
+        drawCircle(
+            color = Color.Magenta,
+            radius = 60f * zoom,
+            center = Offset(centerX + 150 * zoom, centerY - 100 * zoom),
+            style = Stroke(width = 2f)
+        )
+
+        // Çizgi
+        drawLine(
+            color = Color.Yellow,
+            start = Offset(centerX - 150 * zoom, centerY + 100 * zoom),
+            end = Offset(centerX + 150 * zoom, centerY + 100 * zoom),
+            strokeWidth = 3f
+        )
+
+        // Merkez işareti
+        drawLine(
+            color = Color.Red,
+            start = Offset(centerX - 10, centerY),
+            end = Offset(centerX + 10, centerY),
+            strokeWidth = 2f
+        )
+        drawLine(
+            color = Color.Red,
+            start = Offset(centerX, centerY - 10),
+            end = Offset(centerX, centerY + 10),
+            strokeWidth = 2f
+        )
+    }
+}
+
+enum class ViewerTool {
+    PAN,
+    ZOOM_IN,
+    ZOOM_OUT,
+    ZOOM_WINDOW,
+    ROTATE,
+    SELECT,
+    MEASURE_LINEAR,
+    MEASURE_RADIAL,
+    MEASURE_ANGLE,
+    MEASURE_AREA
+}
+
+@Composable
+fun LeftToolPalette(
+    selectedTool: ViewerTool,
+    onToolSelected: (ViewerTool) -> Unit
+) {
+    Surface(
+        modifier = Modifier
+            .width(80.dp)
+            .fillMaxHeight()
+            .padding(8.dp),
+        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.95f),
+        tonalElevation = 8.dp
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                "ARAÇLAR",
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(vertical = 8.dp)
+            )
+
+            HorizontalDivider()
+
+            ToolButton(
+                icon = Icons.Default.OpenWith,
+                label = "Pan",
+                isSelected = selectedTool == ViewerTool.PAN,
+                onClick = { onToolSelected(ViewerTool.PAN) }
+            )
+
+            ToolButton(
+                icon = Icons.Default.Add,
+                label = "Zoom+",
+                isSelected = selectedTool == ViewerTool.ZOOM_IN,
+                onClick = { onToolSelected(ViewerTool.ZOOM_IN) }
+            )
+
+            ToolButton(
+                icon = Icons.Default.Close,
+                label = "Zoom-",
+                isSelected = selectedTool == ViewerTool.ZOOM_OUT,
+                onClick = { onToolSelected(ViewerTool.ZOOM_OUT) }
+            )
+
+            ToolButton(
+                icon = Icons.Default.CheckBoxOutlineBlank,
+                label = "Seç",
+                isSelected = selectedTool == ViewerTool.SELECT,
+                onClick = { onToolSelected(ViewerTool.SELECT) }
+            )
+
+            HorizontalDivider()
+
+            ToolButton(
+                icon = Icons.Default.Timeline,
+                label = "Ölç",
+                isSelected = selectedTool == ViewerTool.MEASURE_LINEAR,
+                onClick = { onToolSelected(ViewerTool.MEASURE_LINEAR) }
+            )
+
+            ToolButton(
+                icon = Icons.Default.Circle,
+                label = "Yarıçap",
+                isSelected = selectedTool == ViewerTool.MEASURE_RADIAL,
+                onClick = { onToolSelected(ViewerTool.MEASURE_RADIAL) }
+            )
+
+            ToolButton(
+                icon = Icons.Default.TrendingUp,
+                label = "Açı",
+                isSelected = selectedTool == ViewerTool.MEASURE_ANGLE,
+                onClick = { onToolSelected(ViewerTool.MEASURE_ANGLE) }
+            )
+        }
+    }
+}
+
+@Composable
+fun ToolButton(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    isSelected: Boolean,
+    onClick: () -> Unit
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier.width(64.dp)
+    ) {
+        IconButton(
+            onClick = onClick,
+            modifier = Modifier
+                .size(48.dp)
+                .clip(CircleShape)
+                .background(
+                    if (isSelected) MaterialTheme.colorScheme.primaryContainer
+                    else Color.Transparent
+                )
+        ) {
+            Icon(
+                icon,
+                contentDescription = label,
+                tint = if (isSelected) MaterialTheme.colorScheme.primary
+                else MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        Text(
+            label,
+            style = MaterialTheme.typography.labelSmall,
+            fontSize = 9.sp,
+            color = if (isSelected) MaterialTheme.colorScheme.primary
+            else MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}
+
+@Composable
+fun RightPropertiesPanel() {
+    Surface(
+        modifier = Modifier
+            .width(280.dp)
+            .fillMaxHeight()
+            .padding(8.dp),
+        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.95f),
+        tonalElevation = 8.dp
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp)
+        ) {
+            Text(
+                "KATMANLAR",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Demo Katmanlar
+            LayerItem("Duvarlar", Color.White, true, false)
+            LayerItem("Kapılar", Color.Yellow, true, false)
+            LayerItem("Pencereler", Color.Cyan, true, false)
+            LayerItem("Mobilya", Color.Green, false, false)
+            LayerItem("Ölçülendirme", Color.Red, true, true)
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            Text(
+                "ÖZELLİKLER",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            PropertyItem("Renk", "Beyaz")
+            PropertyItem("Çizgi Tipi", "Sürekli")
+            PropertyItem("Kalınlık", "0.25mm")
+            PropertyItem("Şeffaflık", "%0")
+        }
+    }
+}
+
+@Composable
+fun LayerItem(
+    name: String,
+    color: Color,
+    isVisible: Boolean,
+    isLocked: Boolean
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .size(24.dp)
+                .clip(CircleShape)
+                .background(color)
+        )
+        Spacer(modifier = Modifier.width(12.dp))
+        Text(
+            name,
+            modifier = Modifier.weight(1f),
+            style = MaterialTheme.typography.bodyMedium
+        )
+        IconButton(onClick = { /* TODO */ }, modifier = Modifier.size(32.dp)) {
+            Icon(
+                if (isVisible) Icons.Default.RemoveRedEye else Icons.Default.VisibilityOff,
+                contentDescription = "Görünürlük",
+                modifier = Modifier.size(20.dp)
+            )
+        }
+        IconButton(onClick = { /* TODO */ }, modifier = Modifier.size(32.dp)) {
+            Icon(
+                if (isLocked) Icons.Default.Lock else Icons.Default.LockOpen,
+                contentDescription = "Kilit",
+                modifier = Modifier.size(20.dp)
+            )
+        }
+    }
+}
+
+@Composable
+fun PropertyItem(label: String, value: String) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp),
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text(
+            label,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Text(
+            value,
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.SemiBold
+        )
+    }
+}
+
+@Composable
+fun ViewerBottomBar(
+    cursorPosition: Offset,
+    scale: String,
+    units: String,
+    gridSnap: Boolean,
+    onToggleGridSnap: () -> Unit
+) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(56.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        tonalElevation = 4.dp
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 16.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Koordinat Bilgisi
+            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                CoordinateDisplay("X", cursorPosition.x.toInt().toString())
+                CoordinateDisplay("Y", cursorPosition.y.toInt().toString())
+                CoordinateDisplay("Z", "0")
+            }
+
+            // Çizim Bilgileri
+            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                InfoChip("Ölçek: $scale")
+                InfoChip("Birim: $units")
+                FilterChip(
+                    selected = gridSnap,
+                    onClick = onToggleGridSnap,
+                    label = { Text("Grid Snap") },
+                    leadingIcon = {
+                        Icon(
+                            Icons.Default.Grid4x4,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun CoordinateDisplay(label: String, value: String) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(
+            "$label:",
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.primary
+        )
+        Spacer(modifier = Modifier.width(4.dp))
+        Text(
+            value,
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.SemiBold
+        )
+    }
+}
+
+@Composable
+fun InfoChip(text: String) {
+    Surface(
+        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.secondaryContainer
+    ) {
+        Text(
+            text,
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+            style = MaterialTheme.typography.labelMedium
+        )
+    }
+}
+
+@Composable
+fun SaveDialog(onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        icon = { Icon(Icons.Default.SaveAlt, contentDescription = null) },
+        title = { Text("Kaydet") },
+        text = {
+            Text("Dosya başarıyla kaydedildi!\n\nKonum: /storage/emulated/0/Documents/Mimari_Plan_A1.dwg")
+        },
+        confirmButton = {
+            Button(onClick = onDismiss) {
+                Text("Tamam")
+            }
+        }
+    )
+}
+
+@Composable
+fun ShareDialog(onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        icon = { Icon(Icons.Default.Share, contentDescription = null) },
+        title = { Text("Paylaş") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Dosyayı paylaşmak için bir yöntem seçin:")
+                OutlinedButton(
+                    onClick = { /* TODO */ },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(Icons.Default.Email, contentDescription = null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("E-posta")
+                }
+                OutlinedButton(
+                    onClick = { /* TODO */ },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(Icons.Default.CloudQueue, contentDescription = null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Bulut Depolama")
+                }
+                OutlinedButton(
+                    onClick = { /* TODO */ },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(Icons.Default.Link, contentDescription = null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Link Oluştur")
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("İptal")
+            }
+        }
+    )
+}
+
+@Composable
+fun PrintDialog(onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        icon = { Icon(Icons.Default.Send, contentDescription = null) },
+        title = { Text("Yazdır") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text("Yazdırma Ayarları:")
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text("Kağıt Boyutu:")
+                    Text("A4", fontWeight = FontWeight.SemiBold)
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text("Yönelim:")
+                    Text("Yatay", fontWeight = FontWeight.SemiBold)
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text("Ölçek:")
+                    Text("1:100", fontWeight = FontWeight.SemiBold)
+                }
+            }
+        },
+        confirmButton = {
+            Button(onClick = onDismiss) {
+                Text("Yazdır")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("İptal")
+            }
+        }
+    )
+}
+
