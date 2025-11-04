@@ -107,7 +107,25 @@ fun ViewerScreen(
             ) {
                 LeftToolPalette(
                     selectedTool = selectedTool,
-                    onToolSelected = { selectedTool = it }
+                    onToolSelected = { tool ->
+                        selectedTool = tool
+                        // Tool'a göre aksiyon yap
+                        when (tool) {
+                            ViewerTool.ZOOM_IN -> {
+                                viewState = viewState.copy(
+                                    zoom = (viewState.zoom * 1.2f).coerceAtMost(10f)
+                                )
+                            }
+                            ViewerTool.ZOOM_OUT -> {
+                                viewState = viewState.copy(
+                                    zoom = (viewState.zoom / 1.2f).coerceAtLeast(0.1f)
+                                )
+                            }
+                            else -> {
+                                // Diğer tool'lar için sadece seçili durumu değiştir
+                            }
+                        }
+                    }
                 )
             }
 
