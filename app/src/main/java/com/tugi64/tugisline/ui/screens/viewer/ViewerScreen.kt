@@ -516,6 +516,22 @@ fun ToolButton(
 
 @Composable
 fun RightPropertiesPanel() {
+    // Katman state'leri
+    var layer1Visible by remember { mutableStateOf(true) }
+    var layer1Locked by remember { mutableStateOf(false) }
+
+    var layer2Visible by remember { mutableStateOf(true) }
+    var layer2Locked by remember { mutableStateOf(false) }
+
+    var layer3Visible by remember { mutableStateOf(true) }
+    var layer3Locked by remember { mutableStateOf(false) }
+
+    var layer4Visible by remember { mutableStateOf(false) }
+    var layer4Locked by remember { mutableStateOf(false) }
+
+    var layer5Visible by remember { mutableStateOf(true) }
+    var layer5Locked by remember { mutableStateOf(true) }
+
     Surface(
         modifier = Modifier
             .width(280.dp)
@@ -538,12 +554,47 @@ fun RightPropertiesPanel() {
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Demo Katmanlar
-            LayerItem("Duvarlar", Color.White, true, false)
-            LayerItem("Kapılar", Color.Yellow, true, false)
-            LayerItem("Pencereler", Color.Cyan, true, false)
-            LayerItem("Mobilya", Color.Green, false, false)
-            LayerItem("Ölçülendirme", Color.Red, true, true)
+            // Demo Katmanlar - Çalışan butonlar
+            LayerItem(
+                name = "Duvarlar",
+                color = Color.White,
+                isVisible = layer1Visible,
+                isLocked = layer1Locked,
+                onToggleVisibility = { layer1Visible = !layer1Visible },
+                onToggleLock = { layer1Locked = !layer1Locked }
+            )
+            LayerItem(
+                name = "Kapılar",
+                color = Color.Yellow,
+                isVisible = layer2Visible,
+                isLocked = layer2Locked,
+                onToggleVisibility = { layer2Visible = !layer2Visible },
+                onToggleLock = { layer2Locked = !layer2Locked }
+            )
+            LayerItem(
+                name = "Pencereler",
+                color = Color.Cyan,
+                isVisible = layer3Visible,
+                isLocked = layer3Locked,
+                onToggleVisibility = { layer3Visible = !layer3Visible },
+                onToggleLock = { layer3Locked = !layer3Locked }
+            )
+            LayerItem(
+                name = "Mobilya",
+                color = Color.Green,
+                isVisible = layer4Visible,
+                isLocked = layer4Locked,
+                onToggleVisibility = { layer4Visible = !layer4Visible },
+                onToggleLock = { layer4Locked = !layer4Locked }
+            )
+            LayerItem(
+                name = "Ölçülendirme",
+                color = Color.Red,
+                isVisible = layer5Visible,
+                isLocked = layer5Locked,
+                onToggleVisibility = { layer5Visible = !layer5Visible },
+                onToggleLock = { layer5Locked = !layer5Locked }
+            )
 
             Spacer(modifier = Modifier.height(24.dp))
 
@@ -568,7 +619,9 @@ fun LayerItem(
     name: String,
     color: Color,
     isVisible: Boolean,
-    isLocked: Boolean
+    isLocked: Boolean,
+    onToggleVisibility: () -> Unit,
+    onToggleLock: () -> Unit
 ) {
     Row(
         modifier = Modifier
@@ -588,18 +641,22 @@ fun LayerItem(
             modifier = Modifier.weight(1f),
             style = MaterialTheme.typography.bodyMedium
         )
-        IconButton(onClick = { /* TODO */ }, modifier = Modifier.size(32.dp)) {
+        IconButton(onClick = onToggleVisibility, modifier = Modifier.size(32.dp)) {
             Icon(
                 if (isVisible) Icons.Default.RemoveRedEye else Icons.Default.VisibilityOff,
                 contentDescription = "Görünürlük",
-                modifier = Modifier.size(20.dp)
+                modifier = Modifier.size(20.dp),
+                tint = if (isVisible) MaterialTheme.colorScheme.primary
+                       else MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
-        IconButton(onClick = { /* TODO */ }, modifier = Modifier.size(32.dp)) {
+        IconButton(onClick = onToggleLock, modifier = Modifier.size(32.dp)) {
             Icon(
                 if (isLocked) Icons.Default.Lock else Icons.Default.LockOpen,
                 contentDescription = "Kilit",
-                modifier = Modifier.size(20.dp)
+                modifier = Modifier.size(20.dp),
+                tint = if (isLocked) MaterialTheme.colorScheme.error
+                       else MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
     }
