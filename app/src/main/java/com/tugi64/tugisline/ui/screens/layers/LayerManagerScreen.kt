@@ -41,7 +41,9 @@ fun LayerManagerScreen(
 
     var showAddLayerDialog by remember { mutableStateOf(false) }
     var showDeleteConfirmDialog by remember { mutableStateOf(false) }
+    var showEditLayerDialog by remember { mutableStateOf(false) }
     var layerToDelete by remember { mutableStateOf<Layer?>(null) }
+    var layerToEdit by remember { mutableStateOf<Layer?>(null) }
 
     if (showAddLayerDialog) {
         AddLayerDialog(
@@ -66,6 +68,20 @@ fun LayerManagerScreen(
                 sampleLayers = sampleLayers.filter { it.id != layerToDelete?.id }
                 showDeleteConfirmDialog = false
                 layerToDelete = null
+            }
+        )
+    }
+
+    if (showEditLayerDialog && layerToEdit != null) {
+        EditLayerDialog(
+            layer = layerToEdit!!,
+            onDismiss = { showEditLayerDialog = false },
+            onConfirm = { updatedLayer ->
+                sampleLayers = sampleLayers.map {
+                    if (it.id == updatedLayer.id) updatedLayer else it
+                }
+                showEditLayerDialog = false
+                layerToEdit = null
             }
         )
     }
@@ -115,7 +131,10 @@ fun LayerManagerScreen(
                             if (it.id == layer.id) it.copy(isFrozen = !it.isFrozen) else it
                         }
                     },
-                    onEdit = { /* TODO: Show edit dialog */ },
+                    onEdit = {
+                        layerToEdit = layer
+                        showEditLayerDialog = true
+                    },
                     onDelete = {
                         layerToDelete = layer
                         showDeleteConfirmDialog = true
@@ -286,6 +305,73 @@ fun DeleteLayerDialog(
                 )
             ) {
                 Text("Sil")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("İptal")
+            }
+        }
+    )
+}
+
+@Composable
+fun EditLayerDialog(
+    layer: Layer,
+    onDismiss: () -> Unit,
+    onConfirm: (Layer) -> Unit
+) {
+    var layerName by remember { mutableStateOf(layer.name) }
+    var selectedLineType by remember { mutableStateOf(layer.lineType) }
+    var lineWeight by remember { mutableStateOf(layer.lineWeight) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        icon = { Icon(Icons.Default.Edit, contentDescription = null) },
+        title = { Text("Katmanı Düzenle") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                OutlinedTextField(
+                    value = layerName,
+                    onValueChange = { layerName = it },
+                    label = { Text("Katman Adı") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Text("Çizgi Tipi:", style = MaterialTheme.typography.labelMedium)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    LineType.values().take(3).forEach { type ->
+                        FilterChip(
+                            selected = selectedLineType == type,
+                            onClick = { selectedLineType = type },
+                            label = { Text(type.name) }
+                        )
+                    }
+                }
+
+                Text("Çizgi Kalınlığı: ${String.format("%.2f", lineWeight)}mm",
+                     style = MaterialTheme.typography.labelMedium)
+                Slider(
+                    value = lineWeight,
+                    onValueChange = { lineWeight = it },
+                    valueRange = 0.1f..2f,
+                    steps = 18
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    onConfirm(layer.copy(
+                        name = layerName,
+                        lineType = selectedLineType,
+                        lineWeight = lineWeight
+                    ))
+                },
+                enabled = layerName.isNotBlank()
+            ) {
+                Text("Kaydet")
             }
         },
         dismissButton = {

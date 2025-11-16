@@ -93,6 +93,7 @@ fun ViewerScreen(
             // Canvas - Çizim Alanı
             DrawingCanvas(
                 viewState = viewState,
+                selectedTool = selectedTool,
                 onViewStateChange = { viewState = it },
                 onCursorMove = { cursorPosition = it },
                 modifier = Modifier.fillMaxSize()
@@ -253,12 +254,16 @@ fun ViewerTopBar(
 @Composable
 fun DrawingCanvas(
     viewState: ViewState,
+    selectedTool: ViewerTool,
     onViewStateChange: (ViewState) -> Unit,
     onCursorMove: (Offset) -> Unit,
     modifier: Modifier = Modifier
 ) {
     var offset by remember { mutableStateOf(Offset(viewState.offsetX, viewState.offsetY)) }
     var zoom by remember { mutableStateOf(viewState.zoom) }
+    var drawnShapes by remember { mutableStateOf<List<com.tugi64.tugisline.data.model.DrawnShape>>(emptyList()) }
+    var currentDrawing by remember { mutableStateOf<com.tugi64.tugisline.data.model.DrawnShape?>(null) }
+    var drawingStartPoint by remember { mutableStateOf<Offset?>(null) }
 
     // Zoom state'i ViewState'ten senkronize et
     LaunchedEffect(viewState.zoom) {
@@ -302,12 +307,58 @@ fun DrawingCanvas(
             }
             .pointerInput(Unit) {
                 // Tek parmak drag desteği
-                detectDragGestures { change, dragAmount ->
-                    change.consume()
-                    offset += dragAmount
-                    onCursorMove(change.position)
-                    onViewStateChange(ViewState(zoom, offset.x, offset.y))
-                }
+                detectDragGestures(
+                    onDragStart = { startOffset ->
+                        when (selectedTool) {
+                            ViewerTool.LINE, ViewerTool.RECTANGLE, ViewerTool.CIRCLE -> {
+                                drawingStartPoint = startOffset
+                                currentDrawing = com.tugi64.tugisline.data.model.DrawnShape(
+                                    type = when (selectedTool) {
+                                        ViewerTool.LINE -> com.tugi64.tugisline.data.model.ShapeType.LINE
+                                        ViewerTool.RECTANGLE -> com.tugi64.tugisline.data.model.ShapeType.RECTANGLE
+                                        ViewerTool.CIRCLE -> com.tugi64.tugisline.data.model.ShapeType.CIRCLE
+                                        else -> com.tugi64.tugisline.data.model.ShapeType.LINE
+                                    },
+                                    startPoint = startOffset,
+                                    color = Color.Cyan
+                                )
+                            }
+                            else -> {
+                                // PAN mode için varsayılan davranış
+                            }
+                        }
+                    },
+                    onDrag = { change, dragAmount ->
+                        change.consume()
+
+                        when (selectedTool) {
+                            ViewerTool.LINE, ViewerTool.RECTANGLE, ViewerTool.CIRCLE -> {
+                                // Çizim modu - şekli güncelle
+                                drawingStartPoint?.let { start ->
+                                    currentDrawing = currentDrawing?.copy(
+                                        endPoint = change.position
+                                    )
+                                }
+                            }
+                            else -> {
+                                // PAN modu - canvas'ı kaydır
+                                offset += dragAmount
+                                onViewStateChange(ViewState(zoom, offset.x, offset.y))
+                            }
+                        }
+                        onCursorMove(change.position)
+                    },
+                    onDragEnd = {
+                        // Çizim tamamlandı - listeye ekle
+                        currentDrawing?.let { drawing ->
+                            if (drawing.endPoint != null) {
+                                drawnShapes = drawnShapes + drawing
+                            }
+                        }
+                        currentDrawing = null
+                        drawingStartPoint = null
+                    }
+                )
             }
     ) {
         val gridSize = 50f * zoom
@@ -376,6 +427,100 @@ fun DrawingCanvas(
             end = Offset(centerX, centerY + 10),
             strokeWidth = 2f
         )
+
+        // Çizilen şekilleri render et
+        drawnShapes.forEach { shape ->
+            when (shape.type) {
+                com.tugi64.tugisline.data.model.ShapeType.LINE -> {
+                    if (shape.endPoint != null) {
+                        drawLine(
+                            color = shape.color,
+                            start = shape.startPoint,
+                            end = shape.endPoint,
+                            strokeWidth = shape.strokeWidth
+                        )
+                    }
+                }
+                com.tugi64.tugisline.data.model.ShapeType.RECTANGLE -> {
+                    if (shape.endPoint != null) {
+                        drawRect(
+                            color = shape.color,
+                            topLeft = Offset(
+                                minOf(shape.startPoint.x, shape.endPoint.x),
+                                minOf(shape.startPoint.y, shape.endPoint.y)
+                            ),
+                            size = androidx.compose.ui.geometry.Size(
+                                kotlin.math.abs(shape.endPoint.x - shape.startPoint.x),
+                                kotlin.math.abs(shape.endPoint.y - shape.startPoint.y)
+                            ),
+                            style = Stroke(width = shape.strokeWidth)
+                        )
+                    }
+                }
+                com.tugi64.tugisline.data.model.ShapeType.CIRCLE -> {
+                    if (shape.endPoint != null) {
+                        val radius = kotlin.math.sqrt(
+                            (shape.endPoint.x - shape.startPoint.x).let { it * it } +
+                            (shape.endPoint.y - shape.startPoint.y).let { it * it }
+                        )
+                        drawCircle(
+                            color = shape.color,
+                            radius = radius,
+                            center = shape.startPoint,
+                            style = Stroke(width = shape.strokeWidth)
+                        )
+                    }
+                }
+                else -> { /* Diğer şekiller için TODO */ }
+            }
+        }
+
+        // Mevcut çizimi render et
+        currentDrawing?.let { shape ->
+            when (shape.type) {
+                com.tugi64.tugisline.data.model.ShapeType.LINE -> {
+                    if (shape.endPoint != null) {
+                        drawLine(
+                            color = shape.color.copy(alpha = 0.7f),
+                            start = shape.startPoint,
+                            end = shape.endPoint,
+                            strokeWidth = shape.strokeWidth
+                        )
+                    }
+                }
+                com.tugi64.tugisline.data.model.ShapeType.RECTANGLE -> {
+                    if (shape.endPoint != null) {
+                        drawRect(
+                            color = shape.color.copy(alpha = 0.7f),
+                            topLeft = Offset(
+                                minOf(shape.startPoint.x, shape.endPoint.x),
+                                minOf(shape.startPoint.y, shape.endPoint.y)
+                            ),
+                            size = androidx.compose.ui.geometry.Size(
+                                kotlin.math.abs(shape.endPoint.x - shape.startPoint.x),
+                                kotlin.math.abs(shape.endPoint.y - shape.startPoint.y)
+                            ),
+                            style = Stroke(width = shape.strokeWidth)
+                        )
+                    }
+                }
+                com.tugi64.tugisline.data.model.ShapeType.CIRCLE -> {
+                    if (shape.endPoint != null) {
+                        val radius = kotlin.math.sqrt(
+                            (shape.endPoint.x - shape.startPoint.x).let { it * it } +
+                            (shape.endPoint.y - shape.startPoint.y).let { it * it }
+                        )
+                        drawCircle(
+                            color = shape.color.copy(alpha = 0.7f),
+                            radius = radius,
+                            center = shape.startPoint,
+                            style = Stroke(width = shape.strokeWidth)
+                        )
+                    }
+                }
+                else -> { /* Diğer şekiller için TODO */ }
+            }
+        }
     }
 }
 
@@ -389,7 +534,12 @@ enum class ViewerTool {
     MEASURE_LINEAR,
     MEASURE_RADIAL,
     MEASURE_ANGLE,
-    MEASURE_AREA
+    MEASURE_AREA,
+    LINE,
+    RECTANGLE,
+    CIRCLE,
+    ARC,
+    TEXT
 }
 
 @Composable
@@ -471,6 +621,43 @@ fun LeftToolPalette(
                 label = "Açı",
                 isSelected = selectedTool == ViewerTool.MEASURE_ANGLE,
                 onClick = { onToolSelected(ViewerTool.MEASURE_ANGLE) }
+            )
+
+            HorizontalDivider()
+
+            ToolButton(
+                icon = Icons.Default.ShowChart,
+                label = "Çizgi",
+                isSelected = selectedTool == ViewerTool.LINE,
+                onClick = { onToolSelected(ViewerTool.LINE) }
+            )
+
+            ToolButton(
+                icon = Icons.Default.CropSquare,
+                label = "Dikdörtgen",
+                isSelected = selectedTool == ViewerTool.RECTANGLE,
+                onClick = { onToolSelected(ViewerTool.RECTANGLE) }
+            )
+
+            ToolButton(
+                icon = Icons.Default.Circle,
+                label = "Daire",
+                isSelected = selectedTool == ViewerTool.CIRCLE,
+                onClick = { onToolSelected(ViewerTool.CIRCLE) }
+            )
+
+            ToolButton(
+                icon = Icons.Default.AutoAwesome,
+                label = "Yay",
+                isSelected = selectedTool == ViewerTool.ARC,
+                onClick = { onToolSelected(ViewerTool.ARC) }
+            )
+
+            ToolButton(
+                icon = Icons.Default.TextFields,
+                label = "Metin",
+                isSelected = selectedTool == ViewerTool.TEXT,
+                onClick = { onToolSelected(ViewerTool.TEXT) }
             )
         }
     }
@@ -707,9 +894,9 @@ fun ViewerBottomBar(
         ) {
             // Koordinat Bilgisi
             Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                CoordinateDisplay("X", cursorPosition.x.toInt().toString())
-                CoordinateDisplay("Y", cursorPosition.y.toInt().toString())
-                CoordinateDisplay("Z", "0")
+                CoordinateDisplay("X", String.format("%.2f", cursorPosition.x))
+                CoordinateDisplay("Y", String.format("%.2f", cursorPosition.y))
+                CoordinateDisplay("Z", "0.00")
             }
 
             // Çizim Bilgileri

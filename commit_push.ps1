@@ -1,14 +1,15 @@
-#!/usr/bin/env bash
-set -euo pipefail
+# PowerShell commit & push script
+$ErrorActionPreference = 'Stop'
 
-# Script'in bulunduğu dizine (repo kökü) geç
-cd "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Repo kök dizinine geç
+Set-Location -Path (Split-Path -Parent $MyInvocation.MyCommand.Path)
 
-# Tüm değişiklikleri ekle
-git add -A
+# Stage all
+& git add -A
 
-# Çok satırlı, detaylı commit mesajı
-git commit -F - <<'MSG'
+# Çok satırlı commit mesajı için geçici dosya kullan
+$tmp = New-TemporaryFile
+@'
 feat: Advanced CAD features - Drawing tools, Layer management & Enhanced UI
 
 ✅ Drawing Tools (Çizim Araçları):
@@ -62,8 +63,13 @@ UI/UX:
 - Color-coded visual feedback
 - Smooth animations and transitions
 - Responsive touch controls
-MSG
+'@ | Set-Content -Path $tmp -Encoding UTF8
 
-# Upstream ile push
-: "${BRANCH:=main}"
-git push -u origin "${BRANCH}"
+& git commit -F $tmp.FullName
+Remove-Item $tmp -Force
+
+# Push
+$branch = $env:BRANCH
+if ([string]::IsNullOrEmpty($branch)) { $branch = 'main' }
+& git push -u origin $branch
+

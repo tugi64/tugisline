@@ -24,6 +24,41 @@ fun SettingsScreen(
     var autoSaveInterval by remember { mutableStateOf(5f) }
     var hardwareAcceleration by remember { mutableStateOf(true) }
     var units by remember { mutableStateOf("Metrik") }
+    var showResetDialog by remember { mutableStateOf(false) }
+
+    if (showResetDialog) {
+        AlertDialog(
+            onDismissRequest = { showResetDialog = false },
+            icon = { Icon(Icons.Default.RestartAlt, contentDescription = null) },
+            title = { Text("Ayarları Sıfırla") },
+            text = { Text("Tüm ayarları varsayılan değerlere döndürmek istediğinizden emin misiniz?") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        // Varsayılan değerlere dön
+                        darkMode = false
+                        showGrid = true
+                        gridSize = 50f
+                        autoSave = true
+                        autoSaveInterval = 5f
+                        hardwareAcceleration = true
+                        units = "Metrik"
+                        showResetDialog = false
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.error
+                    )
+                ) {
+                    Text("Sıfırla")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showResetDialog = false }) {
+                    Text("İptal")
+                }
+            }
+        )
+    }
 
     Scaffold(
         topBar = {
@@ -36,7 +71,12 @@ fun SettingsScreen(
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.primaryContainer
-                )
+                ),
+                actions = {
+                    IconButton(onClick = { showResetDialog = true }) {
+                        Icon(Icons.Default.RestartAlt, contentDescription = "Sıfırla")
+                    }
+                }
             )
         }
     ) { paddingValues ->

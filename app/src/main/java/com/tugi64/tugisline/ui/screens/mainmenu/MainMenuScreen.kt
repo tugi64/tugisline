@@ -41,10 +41,9 @@ fun MainMenuScreen(
         NewProjectDialog(
             onDismiss = { showNewProjectDialog = false },
             onConfirm = { projectName ->
-                // Yeni proje oluşturma işlemi
                 showNewProjectDialog = false
-                // Demo: İlk dosyayı aç
-                onOpenFile("1")
+                // Yeni proje ile viewer'ı aç
+                onOpenFile("new_project")
             }
         )
     }
@@ -248,8 +247,16 @@ fun FileListSection(
     }
 
     val filteredFiles = remember(searchQuery, selectedTab, sampleFiles) {
-        sampleFiles.filter { file ->
+        val filtered = sampleFiles.filter { file ->
             file.name.contains(searchQuery, ignoreCase = true)
+        }
+
+        // Tab'a göre filtrele
+        when (selectedTab) {
+            0 -> filtered.sortedByDescending { it.lastModified } // Son Açılanlar
+            1 -> filtered.filter { it.isFavorite } // Sık Kullanılanlar
+            2 -> filtered.sortedBy { it.name } // Yerel Dosyalar (alfabetik)
+            else -> filtered
         }
     }
 

@@ -77,6 +77,18 @@ fun TugislineNavigation(
                 onNavigateBack = { navController.popBackStack() }
             )
         }
+
+        composable(Screen.FileExplorer.route) {
+            // Şimdilik FileExplorer yerine MainMenu'ye yönlendir
+            MainMenuScreen(
+                onNavigateToFileExplorer = { /* Zaten buradayız */ },
+                onNavigateToSettings = { navController.navigate(Screen.Settings.route) },
+                onNavigateToHelp = { navController.navigate(Screen.Help.route) },
+                onNavigateToAbout = { navController.navigate(Screen.About.route) },
+                onNavigateToCloud = { navController.navigate(Screen.CloudConnect.route) },
+                onOpenFile = { fileId -> navController.navigate(Screen.Viewer.createRoute(fileId)) }
+            )
+        }
     }
 }
 
